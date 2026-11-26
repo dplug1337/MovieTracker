@@ -1,0 +1,42 @@
+@page "/movie-insights"
+
+<PageTitle>Movie Insights</PageTitle>
+
+<section class="page-header page-section">
+    <h1>Movie Insights</h1>
+    <p>Explore the genres and newest releases in the demo collection.</p>
+</section>
+
+<section class="page-section" aria-labelledby="genre-counts">
+    <div class="section-heading"><h2 id="genre-counts">Movies by genre</h2></div>
+    <div class="metric-grid">
+        @foreach (var genre in genreCounts)
+        {
+            <article><span>@genre.Genre</span><strong>@genre.Count</strong></article>
+        }
+    </div>
+</section>
+
+<section class="page-section" aria-labelledby="newest-movies">
+    <div class="section-heading"><h2 id="newest-movies">Newest movies</h2></div>
+    <div class="metric-grid">
+        @foreach (var movie in newestMovies)
+        {
+            <article><strong class="metric-text">@movie.Title</strong><span>@movie.Year</span></article>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly (string Genre, int Count)[] genreCounts = DemoData.Movies
+        .GroupBy(movie => movie.Genre)
+        .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+        .Select(group => (Genre: group.Key, Count: group.Count()))
+        .ToArray();
+
+    private readonly DemoMovie[] newestMovies = DemoData.Movies
+        .OrderByDescending(movie => movie.Year)
+        .ThenBy(movie => movie.Title, StringComparer.OrdinalIgnoreCase)
+        .Take(3)
+        .ToArray();
+}
