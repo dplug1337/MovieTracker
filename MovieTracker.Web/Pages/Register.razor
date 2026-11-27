@@ -1,4 +1,6 @@
-@page "/register"
+﻿@page "/register"
+@inject MovieApiClient Api
+@inject NavigationManager Navigation
 
 <PageTitle>Create account</PageTitle>
 
@@ -7,14 +9,14 @@
         <span class="brand-mark">M</span>
         <span class="eyebrow">START YOUR COLLECTION</span>
         <h1>Create an account</h1>
-        <p>Your watchlist and ratings will live here in a future exercise.</p>
+        <p>Save your watchlist and ratings in one place.</p>
         <form @onsubmit="Submit" @onsubmit:preventDefault>
-            <label>Display name<input @bind="displayName" required placeholder="How should we call you?" /></label>
+            <label>Display name<input @bind="displayName" maxlength="80" required placeholder="How should we call you?" /></label>
             <label>Email address<input type="email" @bind="email" required placeholder="you@example.com" /></label>
-            <div class="form-columns"><label>Password<input type="password" @bind="password" required /></label><label>Confirm password<input type="password" @bind="confirmation" required /></label></div>
-            <button class="button" type="submit">Create account</button>
+            <div class="form-columns"><label>Password<input type="password" @bind="password" minlength="8" maxlength="128" required /></label><label>Confirm password<input type="password" @bind="confirmation" required /></label></div>
+            <button class="button" type="submit" disabled="@busy">@(busy ? "Creating account…" : "Create account")</button>
         </form>
-        @if (message is not null) { <div class="form-message">@message</div> }
+        @if (message is not null) { <div class="form-message" role="alert">@message</div> }
         <small>Already registered? <NavLink href="login">Log in</NavLink></small>
     </div>
 </section>
@@ -26,8 +28,24 @@
     private string confirmation = string.Empty;
     private string? message;
 
-    // TODO(Student Exercise 4): Implement user registration.
-    private void Submit() => message = password == confirmation
-        ? "Registration is a frontend-only demo in this starter project."
-        : "The passwords do not match.";
+    private bool busy;
+
+    private async Task Submit()
+    {
+        if (password != confirmation)
+        {
+            message = "The passwords do not match.";
+            return;
+        }
+
+        busy = true;
+        message = null;
+        try
+        {
+            await Api.RegisterAsync(email.Trim(), displayName.Trim(), password);
+            Navigation.NavigateTo("movies");
+        }
+        catch (HttpRequestException ex) { message = ex.Message; }
+        finally { busy = false; }
+    }
 }

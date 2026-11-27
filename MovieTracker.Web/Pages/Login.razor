@@ -1,4 +1,6 @@
-@page "/login"
+﻿@page "/login"
+@inject MovieApiClient Api
+@inject NavigationManager Navigation
 
 <PageTitle>Log in</PageTitle>
 
@@ -11,9 +13,9 @@
         <form @onsubmit="Submit" @onsubmit:preventDefault>
             <label>Email address<input type="email" @bind="email" required placeholder="you@example.com" /></label>
             <label>Password<input type="password" @bind="password" required placeholder="Your password" /></label>
-            <button class="button" type="submit">Log in</button>
+            <button class="button" type="submit" disabled="@busy">@(busy ? "Logging in…" : "Log in")</button>
         </form>
-        @if (message is not null) { <div class="form-message">@message</div> }
+        @if (message is not null) { <div class="form-message" role="alert">@message</div> }
         <small>New here? <NavLink href="register">Create an account</NavLink></small>
     </div>
 </section>
@@ -23,6 +25,18 @@
     private string password = string.Empty;
     private string? message;
 
-    // TODO(Student Exercise 4): Implement login and JWT authentication.
-    private void Submit() => message = "Authentication is not implemented in the starter project.";
+    private bool busy;
+
+    private async Task Submit()
+    {
+        busy = true;
+        message = null;
+        try
+        {
+            await Api.LoginAsync(email.Trim(), password);
+            Navigation.NavigateTo("watchlist");
+        }
+        catch (HttpRequestException ex) { message = ex.Message; }
+        finally { busy = false; }
+    }
 }

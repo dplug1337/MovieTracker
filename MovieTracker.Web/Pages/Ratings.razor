@@ -1,16 +1,49 @@
 @page "/ratings"
+@inject MovieApiClient Api
 
 <PageTitle>Ratings</PageTitle>
 
-<section class="page-header page-section"><span class="eyebrow">YOUR TASTE, CAPTURED</span><h1>My ratings</h1><p>A demo history of films that made an impression.</p><DemoFeatureNotice /></section>
-<section class="page-section data-panel">
-    <div class="data-row data-heading"><span>Movie</span><span>Your rating</span><span>Date rated</span></div>
-    @foreach (var rating in DemoData.Ratings)
-    {
-        <div class="data-row"><strong>@rating.Title</strong><span class="score">★ @rating.Rating.ToString("0.0") / 10</span><span>@rating.RatedOn.ToString("dd MMM yyyy")</span></div>
-    }
-</section>
+<section class="page-header page-section"><span class="eyebrow">YOUR TASTE, CAPTURED</span><h1>My ratings</h1></section>
+
+@if (!Api.IsSignedIn)
+{
+    <section class="state-panel page-section"><NavLink href="login">Log in to see your ratings</NavLink></section>
+}
+else if (error is not null)
+{
+    <section class="state-panel page-section" role="alert">@error</section>
+}
+else if (ratings is null)
+{
+    <section class="state-panel page-section" role="status">Loading ratings…</section>
+}
+else if (ratings.Length == 0)
+{
+    <section class="state-panel page-section">You haven’t rated any movies. <NavLink href="movies">Browse movies</NavLink></section>
+}
+else
+{
+    <section class="page-section data-panel">
+        <div class="data-row data-heading"><span>Movie</span><span>Your rating</span><span>Date rated</span></div>
+        @foreach (var item in ratings)
+        {
+            <div class="data-row">
+                <strong><NavLink href="@($"movies/{item.Movie.Id}")">@item.Movie.Title</NavLink></strong>
+                <span class="score">★ @item.Rating / 10</span>
+                <span>@item.UpdatedAtUtc.ToString("dd MMM yyyy") UTC</span>
+            </div>
+        }
+    </section>
+}
 
 @code {
-    // TODO(Student Exercise 5): Replace demo ratings with backend data.
+    private PersonalRatingModel[]? ratings;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Api.IsSignedIn) return;
+        try { ratings = await Api.GetRatingsAsync(); }
+        catch (HttpRequestException ex) { error = ex.Message; }
+    }
 }

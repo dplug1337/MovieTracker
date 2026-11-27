@@ -1,3 +1,7 @@
+@implements IDisposable
+@inject MovieApiClient Api
+@inject NavigationManager Navigation
+
 <header class="site-header">
     <div class="nav-wrap">
         <NavLink class="brand" href="" Match="NavLinkMatch.All"><span class="brand-mark">M</span> MovieTracker</NavLink>
@@ -9,8 +13,30 @@
             <NavLink href="statistics">Statistics</NavLink>
         </nav>
         <div class="account-links">
-            <NavLink href="login">Log in</NavLink>
-            <NavLink class="button button-small" href="register">Join free</NavLink>
+            @if (Api.IsSignedIn)
+            {
+                <span>@Api.DisplayName</span>
+                <button class="quiet-button" @onclick="Logout">Log out</button>
+            }
+            else
+            {
+                <NavLink href="login">Log in</NavLink>
+                <NavLink class="button button-small" href="register">Join free</NavLink>
+            }
         </div>
     </div>
 </header>
+
+@code {
+    protected override void OnInitialized() => Api.SessionChanged += OnSessionChanged;
+
+    private void OnSessionChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void Logout()
+    {
+        Api.Logout();
+        Navigation.NavigateTo("login");
+    }
+
+    public void Dispose() => Api.SessionChanged -= OnSessionChanged;
+}

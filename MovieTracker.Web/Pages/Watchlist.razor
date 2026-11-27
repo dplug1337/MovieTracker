@@ -1,36 +1,86 @@
-@page "/watchlist"
+﻿@page "/watchlist"
+@inject MovieApiClient Api
 
 <PageTitle>Watchlist</PageTitle>
 
-<section class="page-header page-section"><span class="eyebrow">YOUR QUEUE</span><h1>Watchlist</h1><p>Keep every film in sight, from first interest to final credits.</p><DemoFeatureNotice /></section>
+<section class="page-header page-section"><span class="eyebrow">YOUR QUEUE</span><h1>Watchlist</h1><p>Keep every film in sight, from first interest to final credits.</p></section>
 
-@foreach (var group in items.GroupBy(item => item.Status))
+@if (!Api.IsSignedIn)
+{
+    <section class="state-panel page-section"><NavLink href="login">Log in to see your watchlist</NavLink></section>
+}
+else if (loading)
+{
+    <section class="state-panel page-section" role="status">Loading watchlist…</section>
+}
+else if (error is null && items.Length == 0)
+{
+    <section class="state-panel page-section">Your watchlist is empty. <NavLink href="movies">Browse movies</NavLink></section>
+}
+@if (error is not null)
+{
+    <section class="state-panel page-section" role="alert">@error</section>
+}
+
+@foreach (var group in (Api.IsSignedIn ? items : []).GroupBy(item => item.Status))
 {
     <section class="page-section watchlist-group">
-        <div class="section-heading"><h2>@group.Key</h2><span>@group.Count()</span></div>
+        <div class="section-heading"><h2>@StatusLabel(group.Key)</h2><span>@group.Count()</span></div>
         <div class="watchlist-list">
             @foreach (var item in group)
             {
-                <article><img src="@item.Movie.PosterPath" alt="" /><div><h3>@item.Movie.Title</h3><p>@item.Movie.Year · @item.Movie.Genre · ★ @item.Movie.Rating</p></div><button class="quiet-button" @onclick="() => Advance(item.Movie.Id)">Move forward →</button></article>
+                <article @key="item.Movie.Id">
+                    <img src="@item.Movie.PosterUrl" alt="" />
+                    <div>
+                        <h3><NavLink href="@($"movies/{item.Movie.Id}")">@item.Movie.Title</NavLink></h3>
+                        <p>@item.Movie.ReleaseYear · @item.Movie.Genre</p>
+                    </div>
+                    <div class="watchlist-actions">
+                        <select aria-label="@($"Watch status for {item.Movie.Title}")" value="@StatusValue(item.Status)"
+                                disabled="@busy" @onchange="e => SetStatusAsync(item.Movie.Id, e.Value?.ToString())">
+                            <option value="1">Want to Watch</option>
+                            <option value="2">Watching</option>
+                            <option value="3">Watched</option>
+                        </select>
+                        <button class="quiet-button" disabled="@busy" @onclick="() => ChangeAsync(() => Api.RemoveWatchlistAsync(item.Movie.Id))">Remove</button>
+                    </div>
+                </article>
             }
         </div>
     </section>
 }
 
 @code {
-    private sealed record WatchItem(DemoMovie Movie, string Status);
-    private readonly List<WatchItem> items =
-    [
-        new(DemoData.Movies[1], "Want to Watch"), new(DemoData.Movies[2], "Want to Watch"),
-        new(DemoData.Movies[0], "Watching"), new(DemoData.Movies[3], "Watched"), new(DemoData.Movies[4], "Watched")
-    ];
+    private WatchlistModel[] items = [];
+    private string? error;
+    private bool loading;
+    private bool busy;
 
-    // TODO(Student Exercise 4): Load the authenticated user's watchlist from the backend.
-    private void Advance(Guid id)
+    protected override async Task OnInitializedAsync()
     {
-        var index = items.FindIndex(item => item.Movie.Id == id);
-        if (index < 0) return;
-        var status = items[index].Status == "Want to Watch" ? "Watching" : "Watched";
-        items[index] = items[index] with { Status = status };
+        if (!Api.IsSignedIn) return;
+        loading = true;
+        try { items = await Api.GetWatchlistAsync(); }
+        catch (HttpRequestException ex) { error = ex.Message; }
+        finally { loading = false; }
     }
+
+    private Task SetStatusAsync(Guid movieId, string? status) =>
+        int.TryParse(status, out var value) ? ChangeAsync(() => Api.SetWatchlistAsync(movieId, value)) : Task.CompletedTask;
+
+    private async Task ChangeAsync(Func<Task> change)
+    {
+        busy = true;
+        error = null;
+        try
+        {
+            await change();
+            items = await Api.GetWatchlistAsync();
+        }
+        catch (HttpRequestException ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private static string StatusLabel(string status) => status == "WantToWatch" ? "Want to Watch" : status;
+    private static int StatusValue(string status) => status switch { "Watching" => 2, "Watched" => 3, _ => 1 };
 }

@@ -1,4 +1,5 @@
-﻿@page "/"
+@page "/"
+@inject MovieApiClient Api
 
 <PageTitle>Home</PageTitle>
 
@@ -12,34 +13,99 @@
             <NavLink class="text-link" href="watchlist">Open my watchlist →</NavLink>
         </div>
     </div>
-    <div class="hero-panel" aria-label="Demo viewing summary">
-        <span class="hero-kicker">This month</span>
-        <strong>6</strong>
-        <span>films watched</span>
-        <div class="mini-rating">Average rating <b>8.2</b></div>
-    </div>
+    @if (stats is not null)
+    {
+        <div class="hero-panel" aria-label="Your viewing summary">
+            <span class="hero-kicker">This month (UTC)</span>
+            <strong>@stats.WatchedThisMonthCount</strong>
+            <span>films watched</span>
+            <div class="mini-rating">Average rating <b>@(stats.AverageRating?.ToString("0.0") ?? "—")</b></div>
+        </div>
+    }
 </section>
 
 <section class="page-section">
-    <div class="section-heading"><div><span class="eyebrow">PICK UP WHERE YOU LEFT OFF</span><h2>Continue watching</h2></div><NavLink href="watchlist">View watchlist →</NavLink></div>
-    <div class="preview-row">
-        @foreach (var movie in DemoData.Movies.Take(3))
-        {
-            <NavLink class="preview-card" href="@($"movies/{movie.Id}")">
-                <img src="@movie.PosterPath" alt="" />
-                <span><b>@movie.Title</b><small>@movie.Year · @movie.Genre</small></span>
-            </NavLink>
-        }
-    </div>
+    <div class="section-heading"><h2>Top-rated movies</h2><NavLink href="movies">Browse catalogue →</NavLink></div>
+    @if (topError is not null)
+    {
+        <p role="alert">@topError</p>
+    }
+    else if (top is null)
+    {
+        <p role="status">Loading top-rated movies…</p>
+    }
+    else if (top.Length == 0)
+    {
+        <p>Movies appear here after receiving at least three ratings.</p>
+    }
+    else
+    {
+        <div class="preview-row">
+            @foreach (var movie in top)
+            {
+                <NavLink class="preview-card" href="@($"movies/{movie.Id}")">
+                    <img src="@movie.PosterUrl" alt="" />
+                    <span><b>@movie.Title</b><small>@movie.ReleaseYear · ★ @movie.AverageRating.ToString("0.0") (@movie.RatingsCount)</small></span>
+                </NavLink>
+            }
+        </div>
+    }
 </section>
 
-<section class="stats-strip page-section">
-    <div><strong>42</strong><span>Movies watched</span></div>
-    <div><strong>7.8</strong><span>Average rating</span></div>
-    <div><strong>18h</strong><span>Watched this month</span></div>
-    <div><strong>Sci-Fi</strong><span>Favourite genre</span></div>
-</section>
+@if (Api.IsSignedIn)
+{
+    <section class="page-section">
+        <div class="section-heading"><h2>Continue watching</h2><NavLink href="watchlist">View watchlist →</NavLink></div>
+        @if (personalError is not null)
+        {
+            <p role="alert">@personalError</p>
+        }
+        else if (watching is null)
+        {
+            <p role="status">Loading watchlist…</p>
+        }
+        else if (watching.Length == 0)
+        {
+            <p>Set a movie to Watching to see it here.</p>
+        }
+        else
+        {
+            <div class="preview-row">
+                @foreach (var item in watching)
+                {
+                    <NavLink class="preview-card" href="@($"movies/{item.Movie.Id}")">
+                        <img src="@item.Movie.PosterUrl" alt="" />
+                        <span><b>@item.Movie.Title</b><small>@item.Movie.ReleaseYear · @item.Movie.Genre</small></span>
+                    </NavLink>
+                }
+            </div>
+        }
+    </section>
+}
 
 @code {
-    // TODO(Student Exercise 5): Replace this demo dashboard with personalized backend data.
+    private TopRatedMovieModel[]? top;
+    private WatchlistModel[]? watching;
+    private StatisticsModel? stats;
+    private string? topError;
+    private string? personalError;
+
+    protected override Task OnInitializedAsync() => Task.WhenAll(LoadTopAsync(), LoadPersonalAsync());
+
+    private async Task LoadTopAsync()
+    {
+        try { top = await Api.GetTopRatedAsync(); }
+        catch (HttpRequestException ex) { topError = ex.Message; }
+    }
+
+    private async Task LoadPersonalAsync()
+    {
+        if (!Api.IsSignedIn) return;
+        try
+        {
+            watching = (await Api.GetWatchlistAsync()).Where(item => item.Status == "Watching").Take(3).ToArray();
+            stats = await Api.GetStatisticsAsync();
+        }
+        catch (HttpRequestException ex) { personalError = ex.Message; }
+    }
 }

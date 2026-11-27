@@ -1,58 +1,230 @@
-@page "/movies/{Id:guid}"
+﻿@page "/movies/{Id:guid}"
+@implements IDisposable
+@inject MovieApiClient Api
 
 <PageTitle>@(movie?.Title ?? "Movie details")</PageTitle>
 
-@if (movie is null)
+@if (loading)
 {
-    <section class="state-panel"><h1>Demo details unavailable</h1><p>This starter includes local details for a few seeded movie IDs.</p><NavLink class="button" href="movies">Back to movies</NavLink></section>
+    <section class="state-panel page-section" role="status">Loading movie…</section>
 }
-else
+@if (error is not null && movie is null)
+{
+    <section class="state-panel page-section" role="alert">@error <NavLink href="movies">Back to movies</NavLink></section>
+}
+@if (movie is not null)
 {
     <section class="details-hero page-section">
-        <img src="@movie.PosterPath" alt="Abstract poster for @movie.Title" />
+        <img src="@movie.PosterUrl" alt="Poster for @movie.Title" />
         <div>
-            <DemoFeatureNotice />
             <span class="genre-badge">@movie.Genre</span>
             <h1>@movie.Title</h1>
-            <p class="details-meta">@movie.Year · @movie.DurationMinutes min · <b>★ @movie.Rating.ToString("0.0")</b></p>
-            <p class="details-description">@movie.Description</p>
-            <div class="details-actions">
-                <button class="button" @onclick="ToggleWatchlist">@(inWatchlist ? "✓ In watchlist" : "+ Add to watchlist")</button>
-                @if (demoMessage is not null) { <span class="success-message">@demoMessage</span> }
-            </div>
-            <div class="rate-box">
-                <span>Your rating</span>
-                @foreach (var score in Enumerable.Range(1, 10))
+            <p class="details-meta">
+                @movie.ReleaseYear ·
+                @if (movie.AverageRating is double average)
                 {
-                    var capturedScore = score;
-                    <button class="rate-button @(userRating == score ? "selected" : null)" @onclick="() => Rate(capturedScore)">@score</button>
+                    <b>★ @average.ToString("0.0") (@movie.RatingsCount)</b>
                 }
-            </div>
+                else
+                {
+                    <span>No ratings yet</span>
+                }
+            </p>
+            <p class="details-description">@movie.Description</p>
+            @if (error is not null)
+            {
+                <div class="form-message" role="alert">@error</div>
+            }
+            @if (Api.IsSignedIn)
+            {
+                <div class="details-actions">
+                    <button class="button" disabled="@busy" @onclick="ToggleWatchlistAsync">@(inWatchlist ? "Remove from watchlist" : "+ Add to watchlist")</button>
+                </div>
+                <div class="rate-box">
+                    <span>Your rating</span>
+                    @foreach (var score in Enumerable.Range(1, 10))
+                    {
+                        <button class="rate-button @(movie.PersonalRating == score ? "selected" : null)"
+                                aria-pressed="@(movie.PersonalRating == score ? "true" : "false")"
+                                disabled="@busy" @onclick="() => RateAsync(score)">@score</button>
+                    }
+                </div>
+            }
+            else
+            {
+                <NavLink href="login">Log in to rate or save this movie</NavLink>
+            }
         </div>
     </section>
     <section class="page-section reviews-section">
-        <div class="section-heading"><div><span class="eyebrow">COMMUNITY NOTES</span><h2>Demo reviews</h2></div></div>
+        <div class="section-heading"><div><span class="eyebrow">COMMUNITY NOTES</span><h2>Reviews</h2></div></div>
+        @if (reviews.Length == 0)
+        {
+            <p>No reviews yet.</p>
+        }
         <div class="review-grid">
-            <article><b>Maya K. <span>★ 9.0</span></b><p>Beautifully paced and even better on a second viewing.</p></article>
-            <article><b>Alex R. <span>★ 8.5</span></b><p>A memorable film with images that stay with you.</p></article>
+            @foreach (var review in reviews)
+            {
+                <article @key="review.Id">
+                    <b>@review.AuthorName <span>@review.CreatedAtUtc.ToString("dd MMM yyyy") UTC</span></b>
+                    <p>@review.Text</p>
+                    @if (review.ModifiedAtUtc is not null)
+                    {
+                        <small>Edited</small>
+                    }
+                    @if (review.IsMine && Api.IsSignedIn)
+                    {
+                        <button class="quiet-button" disabled="@busy" @onclick="() => StartEdit(review)">Edit</button>
+                        @if (confirmDelete == review.Id)
+                        {
+                            <button class="quiet-button" disabled="@busy" @onclick="() => DeleteReviewAsync(review.Id)">Confirm delete</button>
+                            <button class="quiet-button" disabled="@busy" @onclick="() => confirmDelete = null">Cancel</button>
+                        }
+                        else
+                        {
+                            <button class="quiet-button" disabled="@busy" @onclick="() => confirmDelete = review.Id">Delete</button>
+                        }
+                    }
+                </article>
+            }
         </div>
+        @if (Api.IsSignedIn && (editing is not null || !reviews.Any(review => review.IsMine)))
+        {
+            <form class="rate-box review-editor" @onsubmit="SaveReviewAsync" @onsubmit:preventDefault>
+                <label for="review-text">@(editing is null ? "Write a review" : "Edit your review")</label>
+                <textarea id="review-text" rows="5" required @bind="reviewText" @bind:event="oninput"></textarea>
+                <small>20–2000 characters after trimming.</small>
+                <button class="button" type="submit" disabled="@busy">Save review</button>
+                @if (editing is not null)
+                {
+                    <button class="quiet-button" type="button" disabled="@busy" @onclick="ResetEditor">Cancel edit</button>
+                }
+            </form>
+        }
     </section>
 }
 
 @code {
-    [Parameter] 
-    public Guid Id { get; set; }
-    private DemoMovie? movie;
-    private bool inWatchlist;
-    private int? userRating;
-    private string? demoMessage;
+    [Parameter] public Guid Id { get; set; }
 
-    protected override void OnParametersSet()
+    private CancellationTokenSource? load;
+    private MovieDetailsModel? movie;
+    private ReviewModel[] reviews = [];
+    private string reviewText = "";
+    private Guid? editing;
+    private Guid? confirmDelete;
+    private string? error;
+    private bool inWatchlist;
+    private bool loading;
+    private bool busy;
+
+    protected override async Task OnParametersSetAsync()
     {
-        // TODO(Student Exercise 2): Replace hardcoded movie details with GET /api/movies/{id}.
-        movie = DemoData.Movies.FirstOrDefault(item => item.Id == Id);
+        load?.Cancel();
+        load?.Dispose();
+        load = new CancellationTokenSource();
+        var ct = load.Token;
+        var movieId = Id;
+        loading = true;
+        movie = null;
+        reviews = [];
+        error = null;
+        inWatchlist = false;
+        confirmDelete = null;
+        ResetEditor();
+
+        try
+        {
+            var details = await Api.GetDetailsAsync(movieId, ct);
+            var items = await Api.GetReviewsAsync(movieId, ct);
+            var saved = Api.IsSignedIn && (await Api.GetWatchlistAsync(ct)).Any(item => item.Movie.Id == movieId);
+            if (ct.IsCancellationRequested) return;
+            movie = details;
+            reviews = items;
+            inWatchlist = saved;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (HttpRequestException ex)
+        {
+            if (!ct.IsCancellationRequested) error = ex.Message;
+        }
+        finally
+        {
+            if (!ct.IsCancellationRequested) loading = false;
+        }
     }
 
-    private void ToggleWatchlist() { inWatchlist = !inWatchlist; demoMessage = "Saved locally for this demo session."; }
-    private void Rate(int score) { userRating = score; demoMessage = $"Demo rating set to {score}/10."; }
+    private Task ToggleWatchlistAsync() => ChangeAsync(async (id, ct) =>
+    {
+        if (inWatchlist) await Api.RemoveWatchlistAsync(id);
+        else await Api.SetWatchlistAsync(id, 1);
+        if (!ct.IsCancellationRequested) inWatchlist = !inWatchlist;
+    });
+
+    private Task RateAsync(int score) => ChangeAsync(async (id, ct) =>
+    {
+        await Api.RateAsync(id, score);
+        var updated = await Api.GetDetailsAsync(id, ct);
+        if (!ct.IsCancellationRequested) movie = updated;
+    });
+
+    private void StartEdit(ReviewModel review)
+    {
+        editing = review.Id;
+        reviewText = review.Text;
+        error = null;
+    }
+
+    private void ResetEditor()
+    {
+        editing = null;
+        reviewText = "";
+    }
+
+    private async Task SaveReviewAsync()
+    {
+        var text = reviewText.Trim();
+        if (text.Length is < 20 or > 2000)
+        {
+            error = "Enter 20–2000 characters after trimming.";
+            return;
+        }
+
+        await ChangeAsync(async (id, ct) =>
+        {
+            if (editing is Guid reviewId) await Api.EditReviewAsync(id, reviewId, text);
+            else await Api.AddReviewAsync(id, text);
+            var items = await Api.GetReviewsAsync(id, ct);
+            if (ct.IsCancellationRequested) return;
+            reviews = items;
+            ResetEditor();
+        });
+    }
+
+    private Task DeleteReviewAsync(Guid reviewId) => ChangeAsync(async (id, ct) =>
+    {
+        await Api.DeleteReviewAsync(id, reviewId);
+        var items = await Api.GetReviewsAsync(id, ct);
+        if (ct.IsCancellationRequested) return;
+        reviews = items;
+        if (editing == reviewId) ResetEditor();
+        confirmDelete = null;
+    });
+
+    private async Task ChangeAsync(Func<Guid, CancellationToken, Task> action)
+    {
+        var ct = load!.Token;
+        busy = true;
+        error = null;
+        try { await action(Id, ct); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (HttpRequestException ex) { if (!ct.IsCancellationRequested) error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    public void Dispose()
+    {
+        load?.Cancel();
+        load?.Dispose();
+    }
 }
