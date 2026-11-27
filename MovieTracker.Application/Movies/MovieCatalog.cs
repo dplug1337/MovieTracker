@@ -16,12 +16,21 @@ public interface IMovieCatalogRepository
     Task<bool> DeleteAsync(Guid id, CancellationToken ct);
 }
 
-public sealed record CreateMovieRequest(string Title, string Description, MovieGenre Genre, int ReleaseYear, string PosterUrl);
-public sealed record UpdateMovieRequest(string Title, string Description, MovieGenre Genre, int ReleaseYear, string PosterUrl);
+public sealed record CreateMovieRequest(string Title, string Description, MovieGenre Genre, int ReleaseYear, string PosterUrl) : IMovieWriteRequest;
+public sealed record UpdateMovieRequest(string Title, string Description, MovieGenre Genre, int ReleaseYear, string PosterUrl) : IMovieWriteRequest;
 
-public sealed class CreateMovieValidator : AbstractValidator<CreateMovieRequest>
+public interface IMovieWriteRequest
 {
-    public CreateMovieValidator()
+    string Title { get; }
+    string Description { get; }
+    MovieGenre Genre { get; }
+    int ReleaseYear { get; }
+    string PosterUrl { get; }
+}
+
+public abstract class MovieWriteValidator<TRequest> : AbstractValidator<TRequest> where TRequest : IMovieWriteRequest
+{
+    protected MovieWriteValidator()
     {
         RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Description).NotEmpty().MaximumLength(4000);
@@ -31,17 +40,8 @@ public sealed class CreateMovieValidator : AbstractValidator<CreateMovieRequest>
     }
 }
 
-public sealed class UpdateMovieValidator : AbstractValidator<UpdateMovieRequest>
-{
-    public UpdateMovieValidator()
-    {
-        RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Description).NotEmpty().MaximumLength(4000);
-        RuleFor(x => x.Genre).IsInEnum();
-        RuleFor(x => x.ReleaseYear).GreaterThanOrEqualTo(1888);
-        RuleFor(x => x.PosterUrl).NotEmpty().MaximumLength(2048);
-    }
-}
+public sealed class CreateMovieValidator : MovieWriteValidator<CreateMovieRequest>;
+public sealed class UpdateMovieValidator : MovieWriteValidator<UpdateMovieRequest>;
 
 public sealed class MovieCatalogHandler(IMovieCatalogRepository repository)
 {
@@ -70,19 +70,13 @@ public static class MovieCatalogEndpoints
 {
     public static void MapMovieCatalog(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/movies", async (CreateMovieRequest request, IValidator<CreateMovieRequest> validator,
-            MovieCatalogHandler handler, CancellationToken ct) =>
+        endpoints.MapPost("/api/movies", async (CreateMovieRequest request, MovieCatalogHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             return (await handler.CreateAsync(request, ct)).ToHttp(movie => Results.Created($"/api/movies/{movie.Id}", movie));
         }).RequireAuthorization("CatalogueWrite");
 
-        endpoints.MapPut("/api/movies/{id:guid}", async (Guid id, UpdateMovieRequest request, IValidator<UpdateMovieRequest> validator,
-            MovieCatalogHandler handler, CancellationToken ct) =>
+        endpoints.MapPut("/api/movies/{id:guid}", async (Guid id, UpdateMovieRequest request, MovieCatalogHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             return (await handler.UpdateAsync(id, request, ct)).ToHttp();
         }).RequireAuthorization("CatalogueWrite");
 

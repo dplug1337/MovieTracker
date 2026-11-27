@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -64,19 +64,13 @@ public static class AccountsEndpoints
 {
     public static void MapAccounts(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/auth/register", async (RegisterRequest request, IValidator<RegisterRequest> validator,
-            AccountsHandler handler, CancellationToken ct) =>
+        endpoints.MapPost("/api/auth/register", async (RegisterRequest request, AccountsHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             return (await handler.RegisterAsync(request, ct)).ToHttp(user => Results.Json(user, statusCode: 201));
         });
 
-        endpoints.MapPost("/api/auth/login", async (LoginRequest request, IValidator<LoginRequest> validator,
-            AccountsHandler handler, CancellationToken ct) =>
+        endpoints.MapPost("/api/auth/login", async (LoginRequest request, AccountsHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             return (await handler.LoginAsync(request, ct)).ToHttp();
         });
     }

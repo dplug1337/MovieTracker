@@ -59,10 +59,8 @@ public static class WatchlistEndpoints
             Results.Ok(await handler.ListAsync(user.UserId(), ct)));
 
         group.MapPut("/{movieId:guid}", async (Guid movieId, SetWatchlistRequest request, ClaimsPrincipal user,
-            IValidator<SetWatchlistRequest> validator, WatchlistHandler handler, CancellationToken ct) =>
+            WatchlistHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             return (await handler.SetAsync(user.UserId(), movieId, request, ct)).ToHttp();
         });
 

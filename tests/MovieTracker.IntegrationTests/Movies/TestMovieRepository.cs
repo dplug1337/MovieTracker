@@ -1,9 +1,9 @@
 ﻿using MovieTracker.Application.Common.Repositories;
 using MovieTracker.Domain.Movies;
 
-namespace MovieTracker.Infrastructure.Repositories;
+namespace MovieTracker.IntegrationTests.Movies;
 
-public sealed class InMemoryMovieRepository : IMovieRepository
+public sealed class TestMovieRepository : IMovieRepository
 {
     private static IReadOnlyList<Movie> Movies => MovieTracker.Infrastructure.Persistence.MovieSeed.Movies;
 

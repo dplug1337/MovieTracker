@@ -1,5 +1,4 @@
-using FluentValidation;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
@@ -15,21 +14,8 @@ public static class GetMovieListEndpoint
             .ProducesValidationProblem();
 
     private static async Task<IResult> HandleAsync(
-        int page = 1,
-        int pageSize = 12,
-        IValidator<GetMovieListRequest> validator = null!,
-        GetMovieListHandler handler = null!,
-        CancellationToken cancellationToken = default)
-    {
-        var request = new GetMovieListRequest(page, pageSize);
-        var validationResult = await validator.ValidateAsync(request, cancellationToken);
-
-        if (!validationResult.IsValid)
-        {
-            return Results.ValidationProblem(validationResult.ToDictionary());
-        }
-
-        var response = await handler.HandleAsync(request, cancellationToken);
-        return Results.Ok(response);
-    }
+        [AsParameters] GetMovieListRequest request,
+        GetMovieListHandler handler,
+        CancellationToken cancellationToken) =>
+        Results.Ok(await handler.HandleAsync(request, cancellationToken));
 }

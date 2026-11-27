@@ -1,15 +1,19 @@
+﻿using Mapster;
+using MovieTracker.Application.Common;
 using MovieTracker.Domain.Movies;
 
 namespace MovieTracker.Application.Movies.GetMovieList;
 
-internal static class GetMovieListMapping
+public sealed class GetMovieListMapping : IRegister
+{
+    public void Register(TypeAdapterConfig config) =>
+        config.NewConfig<Movie, MovieListItemResponse>().MapToConstructor(true)
+            .Map(dest => dest.Genre, source => source.Genre.ToString());
+
+}
+
+internal static class MovieListResponseMapping
 {
     internal static MovieListItemResponse ToResponse(this Movie movie) =>
-        new(
-            movie.Id,
-            movie.Title,
-            movie.Description,
-            movie.Genre.ToString(),
-            movie.ReleaseYear,
-            movie.PosterUrl);
+        movie.Adapt<MovieListItemResponse>(ResponseMapping.Config);
 }

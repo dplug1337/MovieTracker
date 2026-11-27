@@ -1,5 +1,4 @@
-using System.Security.Claims;
-using FluentValidation;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -15,10 +14,8 @@ public static class RatingsEndpoints
             (await handler.DetailsAsync(id, user.FindUserId(), ct)).ToHttp());
 
         endpoints.MapPost("/api/movies/{id:guid}/ratings", async (Guid id, RateMovieRequest request, ClaimsPrincipal user,
-            IValidator<RateMovieRequest> validator, RatingsHandler handler, CancellationToken ct) =>
+            RatingsHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             return (await handler.SetAsync(user.UserId(), id, request, ct)).ToHttp();
         }).RequireAuthorization();
 

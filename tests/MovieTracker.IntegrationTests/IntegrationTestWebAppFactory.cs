@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MovieTracker.Application.Common.Repositories;
-using MovieTracker.Infrastructure.Repositories;
+using MovieTracker.IntegrationTests.Movies;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -13,6 +13,6 @@ public sealed class IntegrationTestWebAppFactory : WebApplicationFactory<Program
     {
         builder.UseSetting("Jwt:SigningKey", Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
         builder.UseEnvironment("Testing");
-        builder.ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<IMovieRepository, InMemoryMovieRepository>()));
+        builder.ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<IMovieRepository, TestMovieRepository>()));
     }
 }
