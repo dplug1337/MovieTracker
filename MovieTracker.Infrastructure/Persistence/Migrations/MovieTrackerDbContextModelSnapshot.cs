@@ -148,6 +148,63 @@ namespace MovieTracker.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MovieTracker.Domain.Movies.Rating", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MovieId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer");
+
+                    b.HasKey("UserId", "MovieId");
+
+                    b.HasIndex("MovieId");
+
+                    b.ToTable("Ratings", t =>
+                        {
+                            t.HasCheckConstraint("CK_Ratings_Value", " \"Value\" BETWEEN 1 AND 10 ");
+                        });
+                });
+
+            modelBuilder.Entity("MovieTracker.Domain.Movies.Review", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MovieId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MovieId", "CreatedAtUtc");
+
+                    b.HasIndex("UserId", "MovieId")
+                        .IsUnique();
+
+                    b.ToTable("Reviews");
+                });
+
             modelBuilder.Entity("MovieTracker.Domain.Users.UserAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -187,11 +244,50 @@ namespace MovieTracker.Infrastructure.Persistence.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("WatchedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("UserId", "MovieId");
 
                     b.HasIndex("MovieId");
 
                     b.ToTable("Watchlist");
+                });
+
+            modelBuilder.Entity("MovieTracker.Domain.Movies.Rating", b =>
+                {
+                    b.HasOne("MovieTracker.Domain.Movies.Movie", "Movie")
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieTracker.Domain.Users.UserAccount", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Movie");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MovieTracker.Domain.Movies.Review", b =>
+                {
+                    b.HasOne("MovieTracker.Domain.Movies.Movie", null)
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieTracker.Domain.Users.UserAccount", "Author")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
                 });
 
             modelBuilder.Entity("MovieTracker.Domain.Users.WatchlistItem", b =>

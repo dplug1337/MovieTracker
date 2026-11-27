@@ -45,12 +45,6 @@ public sealed class UpdateMovieValidator : AbstractValidator<UpdateMovieRequest>
 
 public sealed class MovieCatalogHandler(IMovieCatalogRepository repository)
 {
-    public async Task<Result<MovieListItemResponse>> GetAsync(Guid id, CancellationToken ct)
-    {
-        var movie = await repository.FindAsync(id, ct);
-        return movie is null ? Error.NotFound : Result<MovieListItemResponse>.Success(movie.ToResponse());
-    }
-
     public async Task<Result<MovieListItemResponse>> CreateAsync(CreateMovieRequest request, CancellationToken ct)
     {
         var movie = Movie.Create(Guid.NewGuid(), request.Title, request.Description, request.Genre, request.ReleaseYear, request.PosterUrl);
@@ -76,9 +70,6 @@ public static class MovieCatalogEndpoints
 {
     public static void MapMovieCatalog(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/movies/{id:guid}", async (Guid id, MovieCatalogHandler handler, CancellationToken ct) =>
-            (await handler.GetAsync(id, ct)).ToHttp());
-
         endpoints.MapPost("/api/movies", async (CreateMovieRequest request, IValidator<CreateMovieRequest> validator,
             MovieCatalogHandler handler, CancellationToken ct) =>
         {

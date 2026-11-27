@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -18,7 +18,7 @@ public interface IWatchlistRepository
 }
 
 public sealed record SetWatchlistRequest(WatchStatus Status);
-public sealed record WatchlistResponse(MovieListItemResponse Movie, string Status);
+public sealed record WatchlistResponse(MovieListItemResponse Movie, string Status, DateTime? WatchedAtUtc);
 
 public sealed class SetWatchlistValidator : AbstractValidator<SetWatchlistRequest>
 {
@@ -28,12 +28,12 @@ public sealed class SetWatchlistValidator : AbstractValidator<SetWatchlistReques
 public sealed class WatchlistHandler(IWatchlistRepository watchlist, IMovieCatalogRepository movies)
 {
     public async Task<IReadOnlyList<WatchlistResponse>> ListAsync(Guid userId, CancellationToken ct) =>
-        (await watchlist.ListAsync(userId, ct)).Select(x => new WatchlistResponse(x.Movie.ToResponse(), x.Status.ToString())).ToArray();
+        (await watchlist.ListAsync(userId, ct)).Select(x => new WatchlistResponse(x.Movie.ToResponse(), x.Status.ToString(), x.WatchedAtUtc)).ToArray();
 
     public async Task<Result> SetAsync(Guid userId, Guid movieId, SetWatchlistRequest request, CancellationToken ct)
     {
         if (await movies.FindAsync(movieId, ct) is null) return Result.Failure(Error.NotFound);
-        var saved = await watchlist.SetAsync(new WatchlistItem(userId, movieId, request.Status), ct);
+        var saved = await watchlist.SetAsync(new WatchlistItem(userId, movieId, request.Status, DateTime.UtcNow), ct);
         return saved ? Result.Success() : Result.Failure(Error.NotFound);
     }
 

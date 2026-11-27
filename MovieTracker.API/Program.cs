@@ -1,4 +1,7 @@
-﻿using MovieTracker.API.Security;
+﻿using MovieTracker.Application.Movies.Ratings;
+using MovieTracker.Application.Movies.Reviews;
+using MovieTracker.Application.Users.Statistics;
+using MovieTracker.API.Security;
 using MovieTracker.Application.Users;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +32,15 @@ builder.Services.AddScoped<IValidator<RegisterRequest>, RegisterValidator>();
 builder.Services.AddScoped<IValidator<LoginRequest>, LoginValidator>();
 builder.Services.AddScoped<IValidator<SetWatchlistRequest>, SetWatchlistValidator>();
 
+builder.Services.AddScoped<IRatingRepository, RatingRepository>();
+builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
+builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
+builder.Services.AddScoped<RatingsHandler>();
+builder.Services.AddScoped<ReviewsHandler>();
+builder.Services.AddScoped<StatisticsHandler>();
+builder.Services.AddScoped<IValidator<RateMovieRequest>, RateMovieValidator>();
+builder.Services.AddScoped<IValidator<WriteReviewRequest>, WriteReviewValidator>();
+
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options => options.AddPolicy("MovieTrackerWeb", policy =>
     policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
@@ -43,6 +55,9 @@ app.MapAccounts();
 app.MapWatchlist();
 app.MapGetMovieListEndpoint();
 app.MapMovieCatalog();
+app.MapRatings();
+app.MapReviews();
+app.MapStatistics();
 
 app.Run();
 

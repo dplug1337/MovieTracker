@@ -11,5 +11,3 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
   </ItemGroup>
 </Project>
-
-

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using MovieTracker.Application.Users;
 using MovieTracker.Domain.Users;
 using MovieTracker.Infrastructure.Persistence;
@@ -17,8 +17,15 @@ public sealed class WatchlistRepository(MovieTrackerDbContext db) : IWatchlistRe
         try
         {
             await db.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO "Watchlist" ("UserId", "MovieId", "Status") VALUES ({item.UserId}, {item.MovieId}, {(int)item.Status})
-                ON CONFLICT ("UserId", "MovieId") DO UPDATE SET "Status" = EXCLUDED."Status"
+                INSERT INTO "Watchlist" ("UserId", "MovieId", "Status", "WatchedAtUtc")
+                VALUES ({item.UserId}, {item.MovieId}, {(int)item.Status}, {item.WatchedAtUtc})
+                ON CONFLICT ("UserId", "MovieId") DO UPDATE
+                SET "Status" = EXCLUDED."Status",
+                    "WatchedAtUtc" = CASE
+                        WHEN EXCLUDED."Status" = {(int)WatchStatus.Watched} AND "Watchlist"."Status" = EXCLUDED."Status"
+                            THEN "Watchlist"."WatchedAtUtc"
+                        ELSE EXCLUDED."WatchedAtUtc"
+                    END
                 """, ct);
             return true;
         }

@@ -11,6 +11,9 @@ public sealed class MovieTrackerDbContext(DbContextOptions<MovieTrackerDbContext
     public DbSet<UserAccount> Users => Set<UserAccount>();
     public DbSet<WatchlistItem> Watchlist => Set<WatchlistItem>();
 
+    public DbSet<Rating> Ratings => Set<Rating>();
+    public DbSet<Review> Reviews => Set<Review>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MovieTrackerDbContext).Assembly);
 }
