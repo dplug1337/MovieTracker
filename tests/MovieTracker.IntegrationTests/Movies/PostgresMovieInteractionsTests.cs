@@ -18,7 +18,7 @@ namespace MovieTracker.IntegrationTests.Movies;
 public sealed class PostgresMovieInteractionsTests
 {
     private const string First = "00000000-0000-0000-0000-000000000001";
-    private const string Second = "00000000-0000-0000-0000-000000000002";
+
     private static string Movies(string id) => $"/api/movies/{id}";
     private const string MyRatings = "/api/users/me/ratings";
     private const string MyStatistics = "/api/users/me/statistics";
@@ -69,6 +69,16 @@ public sealed class PostgresMovieInteractionsTests
         Assert.That(empty!.PersonalRating, Is.Null);
         Assert.That((await guest.GetAsync(Movies(Guid.Empty.ToString()) + "/reviews")).StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
         var newMovie = await CreateTestMovie(factory, adminId);
+        using var admin = CreateAdminClient(factory, adminId);
+        var update = await admin.PutAsJsonAsync(Movies(newMovie), new
+        {
+            title = "Updated integration test movie", description = "PostgreSQL integration test",
+            genre = 1, releaseYear = 2001, posterUrl = "/images/posters/interstellar.svg"
+        });
+        Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var updated = await guest.GetFromJsonAsync<MovieDetailsResponse>(Movies(newMovie));
+        Assert.That(updated!.Title, Is.EqualTo("Updated integration test movie"));
+        Assert.That(updated.ReleaseYear, Is.EqualTo(2001));
         var noRatings = await guest.GetFromJsonAsync<MovieDetailsResponse>(Movies(newMovie));
         Assert.That(noRatings!.AverageRating, Is.Null);
         Assert.That(noRatings.RatingsCount, Is.Zero);
@@ -149,6 +159,16 @@ public sealed class PostgresMovieInteractionsTests
         Assert.That(stats!.WatchedThisMonthCount, Is.Zero);
         Assert.That(stats.WatchedMoviesCount, Is.EqualTo(1));
         Assert.That((await bob.GetFromJsonAsync<WatchlistResponse[]>(Watchlist)), Is.Empty);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<MovieTrackerDbContext>();
+            await database.Watchlist.Where(x => x.MovieId == Guid.Parse(newMovie))
+                .ExecuteUpdateAsync(x => x.SetProperty(r => r.WatchedAtUtc, (DateTime?)null));
+        }
+        await SetWatchStatus(alice, newMovie, 3);
+        Assert.That((await alice.GetFromJsonAsync<WatchlistResponse[]>(Watchlist))!.Single().WatchedAtUtc, Is.Null);
+        Assert.That((await alice.GetFromJsonAsync<StatisticsResponse>(MyStatistics))!.WatchedThisMonthCount, Is.Zero);
+
         await SetWatchStatus(alice, newMovie, 2);
         Assert.That((await alice.GetFromJsonAsync<WatchlistResponse[]>(Watchlist))!.Single().WatchedAtUtc, Is.Null);
         await SetWatchStatus(alice, newMovie, 3);
@@ -162,7 +182,6 @@ public sealed class PostgresMovieInteractionsTests
             await File.WriteAllTextAsync(snapshot, json);
         }
 
-        using var admin = CreateAdminClient(factory, adminId);
         Assert.That((await admin.DeleteAsync(Movies(newMovie))).StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
         Assert.That((await admin.DeleteAsync(Movies(secondMovie))).StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
     }

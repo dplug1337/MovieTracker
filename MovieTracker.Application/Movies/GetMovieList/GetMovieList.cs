@@ -1,4 +1,4 @@
-using MovieTracker.Application.Common.Repositories;
+﻿using MovieTracker.Application.Common.Repositories;
 
 namespace MovieTracker.Application.Movies.GetMovieList;
 
@@ -24,9 +24,12 @@ public sealed class GetMovieListHandler(IMovieRepository movieRepository)
         GetMovieListRequest request,
         CancellationToken cancellationToken)
     {
-        var skip = (request.Page - 1) * request.PageSize;
+        var skip = (request.Page - 1L) * request.PageSize;
         var totalCount = await movieRepository.CountAsync(cancellationToken);
-        var movies = await movieRepository.GetPagedAsync(skip, request.PageSize, cancellationToken);
+        if (skip >= totalCount)
+            return new GetMovieListResponse([], request.Page, request.PageSize, totalCount);
+
+        var movies = await movieRepository.GetPagedAsync((int)skip, request.PageSize, cancellationToken);
         var items = movies.Select(movie => movie.ToResponse()).ToList();
 
         return new GetMovieListResponse(items, request.Page, request.PageSize, totalCount);

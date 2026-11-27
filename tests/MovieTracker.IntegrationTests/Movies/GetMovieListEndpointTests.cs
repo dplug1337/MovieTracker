@@ -29,6 +29,16 @@ public sealed class GetMovieListEndpointTests : BaseIntegrationTest
     }
 
     [Test]
+    public async Task GetMovies_WithLargestPage_ReturnsAnEmptyPage()
+    {
+        using var response = await Client.GetAsync("/api/movies?page=2147483647&pageSize=50");
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var page = await response.Content.ReadFromJsonAsync<GetMovieListResponse>();
+        Assert.That(page!.Items, Is.Empty);
+        Assert.That(page.TotalCount, Is.EqualTo(10));
+    }
+
+    [Test]
     public async Task GetMovies_WithInvalidPagination_ReturnsValidationProblem()
     {
         var response = await Client.GetAsync("/api/movies?page=0&pageSize=51");
